@@ -62,11 +62,13 @@ td{padding:5px 4px;border-bottom:1px solid #e6e6e6}
   <input type="file" accept="application/pdf,image/*" onchange="ucitaj(this)"/>
   <div id="info" class="ok">Dimenzije su uvijek u mm.</div>
 
-  <label>Otvori iz ponude</label>
-  <div id="lista"></div>
-  <button class="btn btn-g" onclick="dodaj()">+ Dodaj otvor ručno (mm)</button>
+  <details class="no-print" style="margin-top:8px">
+    <summary style="color:#c9c9d4;font-size:12px;cursor:pointer">Otvori (samo ako treba ispraviti)</summary>
+    <div id="lista"></div>
+    <button class="btn btn-g" onclick="dodaj()">+ Dodaj otvor ručno (mm)</button>
+  </details>
 
-  <label>2. Izbornik radova</label>
+  <label>2. Izbornik — kvačica ide u ponudu</label>
   <div id="radovi"></div>
 
   <button class="btn btn-red" onclick="window.print()">Print / PDF</button>
@@ -227,14 +229,6 @@ function crtaj(){
         <div style="padding:5px 8px">DATUM: <b>${v("datum")}</b></div>
       </div>
     </div>
-    <table>
-      <thead><tr><th>R.BR.</th><th>OTVOR</th><th>DIM. mm</th><th class="c">KOM</th><th>VRSTA</th><th class="r">OPSEG m′</th></tr></thead>
-      <tbody>${otvori.map((o,i)=>{
-        const dm = ((Number(o.wmm)+Number(o.hmm))*2*(Number(o.kom)||0))/1000;
-        return `<tr><td>${i+1}</td><td>${o.naziv}</td><td>${o.wmm}×${o.hmm}</td><td class="c">${o.kom}</td>
-          <td>${o.tip==="pod"?"Do poda":"Prozor"}</td><td class="r">${fmt(dm)}</td></tr>`;
-      }).join("")}</tbody>
-    </table>
     <table>
       <thead><tr><th>R.BR.</th><th>RAD</th><th class="r">m′</th><th class="r">€ / m′</th><th class="r">UKUPNO</th></tr></thead>
       <tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.naziv}<div style="color:#555">${r.kako}</div></td>
