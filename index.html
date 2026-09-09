@@ -172,43 +172,56 @@ async function ucitaj(el){
 
 function dodaj(){
   otvori.push({naziv:"Otvor", wmm:"", hmm:"", kom:1, tip:"prozor"});
-  crtaj();
+  crtaj(true);
 }
-function brisi(i){ otvori.splice(i,1); crtaj(); }
-function setO(i,k,val){ otvori[i][k]=val; crtaj(); }
+function brisi(i){ otvori.splice(i,1); crtaj(true); }
+function setO(i,k,val){ otvori[i][k]=val; crtaj(false); }
+function setCijena(id, val){ cijena[id]=val; crtajPonudu(); }
 
-function crtaj(){
-  document.getElementById("lista").innerHTML = otvori.map((o,i)=>`
-    <div class="item">
-      <div style="display:flex;justify-content:space-between"><b>${o.naziv||"Otvor"} ${o.wmm||"?"}×${o.hmm||"?"} mm</b>
-        <button class="btn-del" onclick="brisi(${i})">Obriši</button></div>
-      <div class="row2">
-        <div><label>Širina mm</label><input value="${o.wmm}" oninput="setO(${i},'wmm',this.value)"></div>
-        <div><label>Visina mm</label><input value="${o.hmm}" oninput="setO(${i},'hmm',this.value)"></div>
-      </div>
-      <div class="row2">
-        <div><label>Kom</label><input type="number" value="${o.kom}" oninput="setO(${i},'kom',this.value)"></div>
-        <div><label>Vrsta</label>
-          <select onchange="setO(${i},'tip',this.value)">
-            <option value="prozor" ${o.tip==="prozor"?"selected":""}>Prozor (klupica)</option>
-            <option value="pod" ${o.tip==="pod"?"selected":""}>Do poda / balkon / vrata</option>
-          </select>
-        </div>
-      </div>
-    </div>`).join("") || '<div class="ok">Još nema otvora.</div>';
+function crtaj(rebuild){
+  if(rebuild !== false){
+    const lista = document.getElementById("lista");
+    if(lista){
+      lista.innerHTML = otvori.map((o,i)=>`
+        <div class="item">
+          <div style="display:flex;justify-content:space-between"><b>${o.naziv||"Otvor"} ${o.wmm||"?"}×${o.hmm||"?"} mm</b>
+            <button class="btn-del" onclick="brisi(${i})">Obriši</button></div>
+          <div class="row2">
+            <div><label>Širina mm</label><input value="${o.wmm}" onchange="setO(${i},'wmm',this.value)"></div>
+            <div><label>Visina mm</label><input value="${o.hmm}" onchange="setO(${i},'hmm',this.value)"></div>
+          </div>
+          <div class="row2">
+            <div><label>Kom</label><input type="number" value="${o.kom}" onchange="setO(${i},'kom',this.value)"></div>
+            <div><label>Vrsta</label>
+              <select onchange="setO(${i},'tip',this.value)">
+                <option value="prozor" ${o.tip==="prozor"?"selected":""}>Prozor (klupica)</option>
+                <option value="pod" ${o.tip==="pod"?"selected":""}>Do poda / balkon / vrata</option>
+              </select>
+            </div>
+          </div>
+        </div>`).join("") || '<div class="ok">Još nema otvora.</div>';
+    }
+    document.getElementById("radovi").innerHTML = RADOVI.map(r=>{
+      const on = !!uklj[r.id];
+      const dm = metara(r);
+      return `<div class="rad">
+        <label class="chk"><input type="checkbox" ${on?"checked":""} onchange="uklj['${r.id}']=this.checked;crtaj(true)"> ${r.naziv}</label>
+        <div class="ok">${r.kako}</div>
+        <div class="met" id="m-${r.id}">${fmt(dm)} m′</div>
+        <label>Cijena € / m′</label>
+        <input type="number" step="0.01" inputmode="decimal" value="${cijena[r.id]||""}" oninput="setCijena('${r.id}', this.value)">
+      </div>`;
+    }).join("");
+  } else {
+    RADOVI.forEach(r=>{
+      const el = document.getElementById("m-"+r.id);
+      if(el) el.textContent = fmt(metara(r)) + " m′";
+    });
+  }
+  crtajPonudu();
+}
 
-  document.getElementById("radovi").innerHTML = RADOVI.map(r=>{
-    const on = !!uklj[r.id];
-    const dm = metara(r);
-    return `<div class="rad">
-      <label class="chk"><input type="checkbox" ${on?"checked":""} onchange="uklj['${r.id}']=this.checked;crtaj()"> ${r.naziv}</label>
-      <div class="ok">${r.kako}</div>
-      <div class="met">${fmt(dm)} m′</div>
-      <label>Cijena € / m′</label>
-      <input type="number" step="0.01" value="${cijena[r.id]||""}" oninput="cijena['${r.id}']=this.value;crtaj()">
-    </div>`;
-  }).join("");
-
+function crtajPonudu(){
   const rows = RADOVI.filter(r=>uklj[r.id]).map(r=>{
     const dm = metara(r);
     const c = Number(cijena[r.id])||0;
