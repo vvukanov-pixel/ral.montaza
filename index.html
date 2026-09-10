@@ -73,6 +73,9 @@ td{padding:5px 4px;border-bottom:1px solid #e6e6e6}
   <div id="radovi"></div>
 
   <button class="btn btn-red" onclick="window.print()">Print / PDF</button>
+  <button class="btn btn-g" onclick="podijeli()">Podijeli (WhatsApp, mail…)</button>
+  <button class="btn btn-g" onclick="posaljiMail()">Pošalji e-mail</button>
+  <button class="btn btn-g" onclick="preuzmi()">Preuzmi datoteku</button>
 </aside>
 <div class="preview"><div class="sheet" id="sheet"></div></div>
 </div>
@@ -382,6 +385,66 @@ function crtajPonudu(){
       </div>
     </div>
   `;
+}
+
+function imeDatoteke(){
+  const br = (v("broj")||"ponuda").replace(/[^\w\-]+/g,"_");
+  const kup = (v("kupac")||"").replace(/[^\w\-]+/g,"_").slice(0,40);
+  return (kup ? br+"_"+kup : br) + ".html";
+}
+function htmlPonude(){
+  const sheet = document.getElementById("sheet").innerHTML;
+  return `<!DOCTYPE html><html lang="hr"><head><meta charset="UTF-8"><title>${v("broj")||"Ponuda"}</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;margin:12mm;color:#111}
+table{width:100%;border-collapse:collapse;font-size:11px}th{background:#1a1a2e;color:#fff;text-align:left;padding:5px}
+td{padding:5px;border-bottom:1px solid #e6e6e6}.r{text-align:right}
+.totals{width:90mm;margin:5mm 0 0 auto;border:.5px solid #888;font-size:10px}
+.totals div{display:flex;justify-content:space-between;padding:4px 8px}
+.grand{background:#c41e3a;color:#fff;font-weight:700}
+.memo img{width:100%;display:block;margin-bottom:12mm}
+.top{display:grid;grid-template-columns:1fr 77mm;gap:8mm}
+</style></head><body>${sheet}</body></html>`;
+}
+function preuzmi(){
+  const blob = new Blob([htmlPonude()], {type:"text/html;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = imeDatoteke();
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1500);
+}
+function tekstPonude(){
+  const kup = v("kupac")||"";
+  const br = v("broj")||"";
+  const rows = RADOVI.filter(r=>uklj[r.id]).map(r=>{
+    const dm = metara(r);
+    const c = Number(cijena[r.id])||0;
+    return r.naziv+": "+fmt(dm)+" m' x "+fmt(c)+" € = "+fmt(dm*c)+" €";
+  });
+  const sub = rows.length ? RADOVI.filter(r=>uklj[r.id]).reduce((a,r)=>a+metara(r)*(Number(cijena[r.id])||0),0) : 0;
+  const tot = sub*1.25;
+  return "PONUDA "+br+"\nKupac: "+kup+"\nDatum: "+v("datum")+"\nIsporuka: 10 dana\nPlaćanje: 70% avans, ostatak nakon ugradnje\n\n"+rows.join("\n")+"\n\nUkupno s PDV-om: "+fmt(tot)+" €";
+}
+function posaljiMail(){
+  const subj = encodeURIComponent("Ponuda "+(v("broj")||"")+" — "+(v("kupac")||"RAL montaža"));
+  const body = encodeURIComponent(tekstPonude());
+  location.href = "mailto:?subject="+subj+"&body="+body;
+}
+async function podijeli(){
+  const blob = new Blob([htmlPonude()], {type:"text/html;charset=utf-8"});
+  const file = new File([blob], imeDatoteke(), {type:"text/html"});
+  const tekst = tekstPonude();
+  try{
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({title:"Ponuda "+(v("broj")||""), text:tekst, files:[file]});
+      return;
+    }
+    if(navigator.share){
+      await navigator.share({title:"Ponuda "+(v("broj")||""), text:tekst});
+      return;
+    }
+  }catch(e){ if(e && e.name==="AbortError") return; }
+  preuzmi();
 }
 
 document.getElementById("datum").value = danas();
