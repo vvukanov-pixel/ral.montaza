@@ -346,8 +346,11 @@ function crtajPonudu(){
         <div style="margin-top:8px;font-size:11px"><b>Kupac:</b> ${v("kupac")||"________________"}</div>
       </div>
       <div style="border:.5px solid #aaa;font-size:9px">
-        <div style="padding:5px 8px;border-bottom:.5px solid #aaa">BROJ: <b>${v("broj")||"—"}</b></div>
-        <div style="padding:5px 8px">DATUM: <b>${v("datum")}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:.5px solid #aaa"><span>BROJ PONUDE</span><b>${v("broj")||"—"}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:.5px solid #aaa"><span>DATUM</span><b>${v("datum")}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:.5px solid #aaa"><span>VALJANOST</span><b>15 dana</b></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:.5px solid #aaa"><span>ISPORUKA</span><b>10 dana</b></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 8px"><span>PLAĆANJE</span><b>70% avans, ostatak nakon ugradnje</b></div>
       </div>
     </div>
     <table>
@@ -361,7 +364,23 @@ function crtajPonudu(){
       <div><span>PDV 25%</span><b>${fmt(pdv)} €</b></div>
       <div class="grand"><span>UKUPNO</span><span>${fmt(tot)} €</span></div>
     </div>
-    <div class="nap">Cijene €/m′ upisuje naručitelj. Dimenzije iz ponude su u mm.</div>
+    <div style="margin-top:6mm;font-size:9px;line-height:1.45">
+      <b>NAPOMENE:</b><br>
+      • Rok isporuke: 10 dana. Plaćanje: 70% avans, ostatak nakon ugradnje.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8mm;margin-top:5mm;font-size:9px">
+      <div style="border:.5px solid #aaa;padding:6px 8px">
+        <div>Za naplatu</div>
+        <div style="color:#c41e3a;font-size:16px;font-weight:700">${fmt(tot)} €</div>
+        <div>70% avans, ostatak nakon ugradnje<br>Avans ${fmt(tot*0.7)} € · ostatak ${fmt(tot*0.3)} €</div>
+      </div>
+      <div style="border:.5px solid #aaa;padding:6px 8px">
+        Plaćanje izvršiti na račun kod RBA<br>
+        <b>HR76 2484008 1105901607</b><br>
+        Ponuda vrijedi za navedenu izvedbu i količinu.<br>
+        PORTAL MONTAŽA &amp; SERVIS d.o.o.
+      </div>
+    </div>
   `;
 }
 
