@@ -6,6 +6,8 @@
 <title>RAL montaža</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,Helvetica,sans-serif;background:#e8e6e1;color:#111}
@@ -73,9 +75,10 @@ td{padding:5px 4px;border-bottom:1px solid #e6e6e6}
   <div id="radovi"></div>
 
   <button class="btn btn-red" onclick="window.print()">Print / PDF</button>
-  <button class="btn btn-g" onclick="podijeli()">Podijeli (WhatsApp, mail…)</button>
+  <button class="btn btn-g" onclick="podijeli()">Podijeli (WhatsApp, mail, GoodNotes…)</button>
+  <button class="btn btn-g" onclick="goodnotes()">Pošalji u GoodNotes</button>
   <button class="btn btn-g" onclick="posaljiMail()">Pošalji e-mail</button>
-  <button class="btn btn-g" onclick="preuzmi()">Preuzmi datoteku</button>
+  <button class="btn btn-g" onclick="preuzmi()">Preuzmi HTML</button>
 </aside>
 <div class="preview"><div class="sheet" id="sheet"></div></div>
 </div>
@@ -405,6 +408,41 @@ td{padding:5px;border-bottom:1px solid #e6e6e6}.r{text-align:right}
 .top{display:grid;grid-template-columns:1fr 77mm;gap:8mm}
 </style></head><body>${sheet}</body></html>`;
 }
+function imePdf(){
+  const br = (v("broj")||"ponuda").replace(/[^\w\-]+/g,"_");
+  return br + ".pdf";
+}
+async function napraviPdf(){
+  const el = document.getElementById("sheet");
+  const canvas = await html2canvas(el, {scale:2, useCORS:true, backgroundColor:"#ffffff"});
+  const img = canvas.toDataURL("image/jpeg", 0.92);
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
+  pdf.addImage(img, "JPEG", 0, 0, 210, 297);
+  return pdf.output("blob");
+}
+async function goodnotes(){
+  const info = document.getElementById("info");
+  try{
+    info.textContent = "Radim PDF za GoodNotes…";
+    const blob = await napraviPdf();
+    const file = new File([blob], imePdf(), {type:"application/pdf"});
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({title:imePdf(), files:[file]});
+      info.textContent = "Odaberi GoodNotes u izborniku.";
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = imePdf();
+    a.click();
+    info.textContent = "PDF spremljen — otvori ga u GoodNotes.";
+  }catch(e){
+    if(e && e.name==="AbortError") return;
+    info.className = "warn";
+    info.textContent = "PDF: "+(e.message||e);
+  }
+}
 function preuzmi(){
   const blob = new Blob([htmlPonude()], {type:"text/html;charset=utf-8"});
   const a = document.createElement("a");
@@ -431,10 +469,10 @@ function posaljiMail(){
   location.href = "mailto:?subject="+subj+"&body="+body;
 }
 async function podijeli(){
-  const blob = new Blob([htmlPonude()], {type:"text/html;charset=utf-8"});
-  const file = new File([blob], imeDatoteke(), {type:"text/html"});
   const tekst = tekstPonude();
   try{
+    const pdfBlob = await napraviPdf();
+    const file = new File([pdfBlob], imePdf(), {type:"application/pdf"});
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
       await navigator.share({title:"Ponuda "+(v("broj")||""), text:tekst, files:[file]});
       return;
@@ -443,8 +481,11 @@ async function podijeli(){
       await navigator.share({title:"Ponuda "+(v("broj")||""), text:tekst});
       return;
     }
-  }catch(e){ if(e && e.name==="AbortError") return; }
-  preuzmi();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(pdfBlob);
+    a.download = imePdf();
+    a.click();
+  }catch(e){ if(e && e.name==="AbortError") return; preuzmi(); }
 }
 
 document.getElementById("datum").value = danas();
