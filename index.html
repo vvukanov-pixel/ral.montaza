@@ -177,9 +177,9 @@ function parsajSchueCal(txt){
     if(seen.has(key)) continue;
     seen.add(key);
     const block = part.split(/Position:\s*/i)[0];
-    const st = block.match(/St[uü]ck:\s*(\d+)/i);
+    const st = block.match(/St(?:ü|u|ue)ck:\s*(\d+)/i);
     let kom = st ? Math.max(1, Number(st[1])||1) : 1;
-    if(key !== "poz.12") kom = 1;
+    if(key === "poz.12") kom = 2;
     const dim = SCHUE_DIM[key];
     if(!dim) continue;
     out.push({naziv:"Poz. "+key.replace("poz.",""), wmm:dim[0], hmm:dim[1], kom, tip: tipOtvor(key, dim[1])});
