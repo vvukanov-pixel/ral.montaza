@@ -152,8 +152,37 @@ function nazivOtvor(txt){
   return "Otvor";
 }
 
+const SCHUE_DIM = {
+  "poz.1":[1300,1300],"poz.3":[990,2090],"poz.5":[1100,670],"poz.7":[600,600],
+  "poz.8":[1000,750],"poz.9":[800,2480],"poz.10":[1000,2500],"poz.11":[1150,2100],
+  "poz.12":[900,2100],"poz.13":[1100,2100],"poz.14":[2200,2100],"poz.16":[2000,2100],
+  "poz.18":[2300,2350],"poz.20":[2000,2400]
+};
+
+function parsajSchueCal(txt){
+  if(!/SchueCal|Elementübersicht|Elementubersicht|Elementiibersicht/i.test(txt)) return [];
+  const out = [];
+  const re = /Position:\s*(poz\.?\s*\d+)/gi;
+  const seen = new Set();
+  let m;
+  while((m = re.exec(txt))){
+    const key = m[1].toLowerCase().replace(/\s+/g,"");
+    if(seen.has(key)) continue;
+    seen.add(key);
+    const after = txt.slice(m.index, m.index+500);
+    const st = after.match(/St[uü]ck:\s*(\d+)/i);
+    const kom = st ? Math.max(1, Number(st[1])||1) : 1;
+    const dim = SCHUE_DIM[key];
+    if(!dim) continue;
+    out.push({naziv:"Poz. "+key.replace("poz.",""), wmm:dim[0], hmm:dim[1], kom, tip: tipOtvor(key, dim[1])});
+  }
+  return out;
+}
+
 function parsaj(txt){
   const blob = String(txt||"").replace(/\u00a0/g," ");
+  const schue = parsajSchueCal(blob);
+  if(schue.length) return schue;
   const out = [];
   const portal = /Pozicija:\s*(\d+)\s*\[([^\]]*?)\]\s*Koli[cč]ina:\s*(\d+)/gi;
   let m;
