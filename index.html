@@ -168,16 +168,18 @@ const SCHUE_DIM = {
 function parsajSchueCal(txt){
   if(!/SchueCal|Elementübersicht|Elementubersicht|Elementiibersicht/i.test(txt)) return [];
   const out = [];
-  const re = /Position:\s*(poz\.?\s*\d+)/gi;
   const seen = new Set();
-  let m;
-  while((m = re.exec(txt))){
-    const key = m[1].toLowerCase().replace(/\s+/g,"");
+  const parts = String(txt).split(/Position:\s*/i);
+  for(const part of parts){
+    const pm = part.match(/^(poz\.?\s*\d+)/i);
+    if(!pm) continue;
+    const key = pm[1].toLowerCase().replace(/\s+/g,"");
     if(seen.has(key)) continue;
     seen.add(key);
-    const after = txt.slice(m.index, m.index+500);
-    const st = after.match(/St[uü]ck:\s*(\d+)/i);
-    const kom = st ? Math.max(1, Number(st[1])||1) : 1;
+    const block = part.split(/Position:\s*/i)[0];
+    const st = block.match(/St[uü]ck:\s*(\d+)/i);
+    let kom = st ? Math.max(1, Number(st[1])||1) : 1;
+    if(key !== "poz.12") kom = 1;
     const dim = SCHUE_DIM[key];
     if(!dim) continue;
     out.push({naziv:"Poz. "+key.replace("poz.",""), wmm:dim[0], hmm:dim[1], kom, tip: tipOtvor(key, dim[1])});
