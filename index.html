@@ -52,10 +52,10 @@ td{padding:5px 4px;border-bottom:1px solid #e6e6e6}
   <p class="sub">Upload ponude → klikni rad → upiši cijenu €/m′</p>
 
   <label>Kupac</label>
-  <input id="kupac" oninput="crtaj()"/>
+  <input id="kupac" oninput="crtajPonudu()"/>
   <div class="row2">
-    <div><label>Broj</label><input id="broj" oninput="crtaj()"/></div>
-    <div><label>Datum</label><input id="datum" oninput="crtaj()"/></div>
+    <div><label>Broj</label><input id="broj" oninput="crtajPonudu()"/></div>
+    <div><label>Datum</label><input id="datum" oninput="crtajPonudu()"/></div>
   </div>
 
   <label>1. Ponuda ili skica (PDF / slika)</label>
@@ -114,6 +114,23 @@ function metara(rad){
   },0);
 }
 
+function parsajKupac(txt){
+  const raw = String(txt||"").replace(/\u00a0/g," ").replace(/\s+/g," ").trim();
+  const labeled = raw.match(/(?:kupac|naručitelj|narucitelj|klijent|investor)\s*[:\-]\s*([A-ZČĆŽŠĐ0-9][^,\n]{2,80})/i);
+  if(labeled){
+    let ime = labeled[1].replace(/\s{2,}/g," ").trim();
+    ime = ime.split(/\s+(?:Ul\.|Ulica|Adresa|OIB|MB|20000|Ponuda|Postovani)/i)[0].trim();
+    if(ime.length>=3 && !/portal/i.test(ime)) return ime;
+  }
+  const firme = raw.match(/([A-ZČĆŽŠĐ][A-ZČĆŽŠĐa-zčćžšđ0-9.&\/\- ]{2,60}\s*(?:d\.?\s*o\.?\s*o\.?|j\.?\s*d\.?\s*o\.?\s*o\.?|obrt|s\.p\.))/gi) || [];
+  for(const f of firme){
+    const ime = f.replace(/\s+/g," ").trim();
+    if(/portal|marlex|aluplast|feal/i.test(ime)) continue;
+    if(ime.length>=4) return ime;
+  }
+  return "";
+}
+
 function parsaj(txt){
   const blob = String(txt||"").replace(/\u00a0/g," ").replace(/,/g,".");
   const re = /(\d{3,4})\s*[x×]\s*(\d{3,4})\s*mm/ig;
@@ -161,9 +178,14 @@ async function ucitaj(el){
       return;
     }
     otvori = found;
+    const ime = parsajKupac(text);
+    const kupacEl = document.getElementById("kupac");
+    if(ime){
+      kupacEl.value = ime;
+    }
     info.className = "ok";
-    info.textContent = "Učitano otvora: " + found.length + ". Klikni rad u izborniku.";
-    crtaj();
+    info.textContent = "Učitano otvora: " + found.length + (ime ? ". Kupac: " + ime : ". Kupca nisam našao — upiši ručno.");
+    crtaj(true);
   }catch(e){
     info.className = "warn";
     info.textContent = "Greška: " + (e.message||e);
