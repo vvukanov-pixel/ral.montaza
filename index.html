@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>RAL montaža</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,Helvetica,sans-serif;background:#e8e6e1;color:#111}
@@ -116,6 +117,11 @@ function metara(rad){
 
 function parsajKupac(txt){
   const raw = String(txt||"").replace(/\u00a0/g," ").replace(/\s+/g," ").trim();
+  const proj = raw.match(/Projektbezeichnung:\s*([^\n\r]+)/i);
+  if(proj){
+    const ime = proj[1].replace(/\s+/g," ").trim();
+    if(ime && !/nein|keine|n\/a/i.test(ime)) return ime;
+  }
   const labeled = raw.match(/(?:kupac|naručitelj|narucitelj|klijent|investor)\s*[:\-]\s*([A-ZČĆŽŠĐ0-9][^,\n]{2,80})/i);
   if(labeled){
     let ime = labeled[1].replace(/\s{2,}/g," ").trim();
@@ -131,22 +137,51 @@ function parsajKupac(txt){
   return "";
 }
 
+function tipOtvor(txt, hmm){
+  const s = String(txt||"").toLowerCase();
+  if(/(vrata|balkon|do\s*poda|hst|slide|stijena|kliz)/.test(s) || Number(hmm)>=1800) return "pod";
+  return "prozor";
+}
+function nazivOtvor(txt){
+  const s = String(txt||"").toLowerCase();
+  if(/hst/.test(s)) return "HST";
+  if(/slide|kliz/.test(s)) return "Klizni";
+  if(/stijena/.test(s)) return "Stijena";
+  if(/vrata/.test(s)) return "Vrata";
+  if(/prozor/.test(s)) return "Prozor";
+  return "Otvor";
+}
+
 function parsaj(txt){
-  const blob = String(txt||"").replace(/\u00a0/g," ").replace(/,/g,".");
-  const re = /(\d{3,4})\s*[x×]\s*(\d{3,4})\s*mm/ig;
+  const blob = String(txt||"").replace(/\u00a0/g," ");
   const out = [];
+  const portal = /Pozicija:\s*(\d+)\s*\[([^\]]*?)\]\s*Koli[cč]ina:\s*(\d+)/gi;
   let m;
-  while((m = re.exec(blob))){
+  while((m = portal.exec(blob))){
+    const dim = m[2].match(/(\d{3,4})\s*[x×]\s*(\d{3,4})/);
+    if(!dim) continue;
+    const wmm = Number(dim[1]), hmm = Number(dim[2]);
+    if(wmm<250 || hmm<250 || wmm>5000 || hmm>5000) continue;
+    out.push({
+      naziv: nazivOtvor(m[2]) + " poz." + m[1],
+      wmm, hmm,
+      kom: Math.max(1, Number(m[3])||1),
+      tip: tipOtvor(m[2], hmm)
+    });
+  }
+  if(out.length) return out;
+
+  const re = /(\d{3,4})\s*[x×]\s*(\d{3,4})(?:\s*mm)?/ig;
+  const flat = blob.replace(/,/g,".");
+  while((m = re.exec(flat))){
     const wmm = Number(m[1]), hmm = Number(m[2]);
     if(wmm<250 || hmm<250 || wmm>5000 || hmm>5000) continue;
-    const around = blob.slice(Math.max(0,m.index-90), m.index+30).toLowerCase();
-    const after = blob.slice(m.index, m.index+800);
+    const around = flat.slice(Math.max(0,m.index-120), m.index+40);
+    const after = flat.slice(m.index, m.index+900);
     let kom = 1;
-    const km = after.match(/(\d+(?:\.\d+)?)\s*kom/i);
+    const km = after.match(/(\d+(?:\.\d+)?)\s*(?:kom|koli[cč]ina)/i);
     if(km) kom = Math.max(1, Math.round(Number(km[1])));
-    const tip = /(vrata|balkon|do\s*poda)/.test(around) || hmm>=1800 ? "pod" : "prozor";
-    const naziv = around.includes("vrata") ? "Vrata" : (around.includes("prozor") ? "Prozor" : "Otvor");
-    out.push({naziv, wmm, hmm, kom, tip});
+    out.push({naziv: nazivOtvor(around), wmm, hmm, kom, tip: tipOtvor(around, hmm)});
   }
   return out;
 }
@@ -162,19 +197,41 @@ async function ucitaj(el){
       if(!window.pdfjsLib) throw new Error("PDF čitač nije učitan");
       pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
       const pdf = await pdfjsLib.getDocument({data: await f.arrayBuffer()}).promise;
+      const canvases = [];
       for(let i=1;i<=pdf.numPages;i++){
         const page = await pdf.getPage(i);
         const c = await page.getTextContent();
         text += c.items.map(x=>x.str).join(" ") + "\n";
+        const vp = page.getViewport({scale: 1.5});
+        const canvas = document.createElement("canvas");
+        canvas.width = vp.width; canvas.height = vp.height;
+        await page.render({canvasContext: canvas.getContext("2d"), viewport: vp}).promise;
+        canvases.push(canvas);
       }
+      let found0 = parsaj(text);
+      if(!found0.length && window.Tesseract){
+        info.textContent = "Skica — čitam crteže (OCR), pričekaj…";
+        for(const canvas of canvases){
+          const { data } = await Tesseract.recognize(canvas, "eng");
+          text += "\n" + (data.text||"");
+        }
+      }
+    } else if(f.type.startsWith("image/") && window.Tesseract){
+      info.textContent = "Čitam sliku skice…";
+      const url = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+      const { data } = await Tesseract.recognize(url, "eng");
+      text = data.text||"";
     } else {
-      info.textContent = "Za sliku zalijepi dimenzije ili koristi PDF ponude.";
+      info.className = "warn";
+      info.textContent = "Ubaci PDF ponude ili skice.";
       return;
     }
     const found = parsaj(text);
     if(!found.length){
       info.className = "warn";
-      info.textContent = "Nisam našao …x… mm. Ponuda mora imati dimenzije tipa 2040x890 mm.";
+      info.textContent = "Na ovoj skici mjere su samo na crtežu (npr. SchueCal). Upiši otvore ručno ili pošalji skicu ovdje u chat.";
+      const ime0 = parsajKupac(text);
+      if(ime0) document.getElementById("kupac").value = ime0;
       return;
     }
     otvori = found;
