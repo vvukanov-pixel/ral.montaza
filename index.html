@@ -52,7 +52,7 @@ td{padding:5px 4px;border-bottom:1px solid #e6e6e6}
 <div class="app">
 <aside class="panel">
   <h1>RAL MONTAŽA</h1>
-  <p class="sub">Upload ponude → klikni rad → upiši cijenu €/m′</p>
+  <p class="sub">Upload ponude → klikni rad · cijene su upisane, možeš ih mijenjati</p>
 
   <label>Kupac</label>
   <input id="kupac" oninput="crtajPonudu()"/>
@@ -100,7 +100,25 @@ const RADOVI = [
 
 let otvori = [];
 let uklj = {ral:true, izolacija:false, epdm:false};
-let cijena = {};
+const CIJENE_POCETNE = {
+  ral: "22",
+  izolacija: "25",
+  epdm: "18",
+  ps100: "42",
+  ps6: "33",
+  ps35: "26",
+  ps15: "18",
+  kl23: "",
+  kl21: "",
+  kl19: "",
+  kl15: ""
+};
+let cijena = (function(){
+  try{
+    const s = JSON.parse(localStorage.getItem("ral-cijene-v2")||"{}");
+    return Object.assign({}, CIJENE_POCETNE, s);
+  }catch(e){ return Object.assign({}, CIJENE_POCETNE); }
+})();
 
 function danas(){
   const d=new Date();
@@ -292,7 +310,11 @@ function dodaj(){
 }
 function brisi(i){ otvori.splice(i,1); crtaj(true); }
 function setO(i,k,val){ otvori[i][k]=val; crtaj(false); }
-function setCijena(id, val){ cijena[id]=val; crtajPonudu(); }
+function setCijena(id, val){
+  cijena[id]=val;
+  try{ localStorage.setItem("ral-cijene-v2", JSON.stringify(cijena)); }catch(e){}
+  crtajPonudu();
+}
 
 function crtaj(rebuild){
   if(rebuild !== false){
