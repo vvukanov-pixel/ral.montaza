@@ -146,6 +146,11 @@ function parsajKupac(txt){
     const ime = proj[1].replace(/\s+/g," ").trim();
     if(ime && !/nein|keine|n\/a/i.test(ime)) return ime;
   }
+  const obj = raw.match(/Objekt:\s*([A-ZČĆŽŠĐ0-9][^,\n]{2,60})/i);
+  if(obj){
+    const ime = obj[1].replace(/\s+/g," ").trim().split(/\s+Predmet|\s+Pozivom/i)[0].trim();
+    if(ime.length>=3) return ime;
+  }
   const labeled = raw.match(/(?:kupac|naručitelj|narucitelj|klijent|investor)\s*[:\-]\s*([A-ZČĆŽŠĐ0-9][^,\n]{2,80})/i);
   if(labeled){
     let ime = labeled[1].replace(/\s{2,}/g," ").trim();
@@ -155,7 +160,7 @@ function parsajKupac(txt){
   const firme = raw.match(/([A-ZČĆŽŠĐ][A-ZČĆŽŠĐa-zčćžšđ0-9.&\/\- ]{2,60}\s*(?:d\.?\s*o\.?\s*o\.?|j\.?\s*d\.?\s*o\.?\s*o\.?|obrt|s\.p\.))/gi) || [];
   for(const f of firme){
     const ime = f.replace(/\s+/g," ").trim();
-    if(/portal|marlex|aluplast|feal/i.test(ime)) continue;
+    if(/portal|marlex|aluplast|feal|lukal/i.test(ime)) continue;
     if(ime.length>=4) return ime;
   }
   return "";
@@ -205,8 +210,47 @@ function parsajSchueCal(txt){
   return out;
 }
 
+function parsajLukAl(txt){
+  const blob = String(txt||"").replace(/\u00a0/g," ");
+  if(!/Elementma(?:ß|ss|s)\s*\[B\s*[x×]\s*H\]|LukAl|Schüco|Schuco AWS/i.test(blob)) return [];
+  const out = [];
+  const seen = new Set();
+  const parts = blob.split(/(?=poz\.\s*\d+)/i);
+  for(const part of parts){
+    const pm = part.match(/poz\.\s*(\d+)/i);
+    if(!pm) continue;
+    const key = "poz."+pm[1];
+    if(seen.has(key)) continue;
+    if(/transportni|ral\s*montaža|ral\s*montaza/i.test(part) && !/Elementma/i.test(part)) continue;
+    if(/^poz\.\s*\d+\s+Montaža/i.test(part.trim()) && !/Elementma/i.test(part)) continue;
+    const em = part.match(/Elementma(?:ß|ss|s)\s*\[B\s*[x×]\s*H\]\s*:\s*(\d{3,4})\s*mm\s*[x×]\s*([\d.,]+)\s*mm/i);
+    let wmm, hmm;
+    if(em){
+      wmm = Number(em[1]);
+      hmm = Math.round(Number(String(em[2]).replace(",",".")));
+    } else {
+      const tab = part.match(/(?:^|\s)(\d{3,4})\s+(\d{3,4})\s+(\d+)[.,]00\s/);
+      if(!tab) continue;
+      wmm = Number(tab[1]); hmm = Number(tab[2]);
+    }
+    if(wmm<250 || hmm<250 || wmm>6000 || hmm>6000) continue;
+    seen.add(key);
+    let kom = 1;
+    const k1 = part.match(/(\d+)\s*St(?:ü|u)ck/i);
+    const k2 = part.match(/(\d+)[.,]00\s+[\d.]+[.,]\d{2}/);
+    if(k1) kom = Math.max(1, Number(k1[1])||1);
+    else if(k2) kom = Math.max(1, Number(k2[1])||1);
+    const tip = tipOtvor(part, hmm);
+    const naziv = (/Schiebe|kliz/i.test(part) ? "Klizni" : /Türelement|Tür |vrata/i.test(part) ? "Vrata" : /Fenster/i.test(part) ? "Prozor" : "Otvor") + " "+key;
+    out.push({naziv, wmm, hmm, kom, tip});
+  }
+  return out;
+}
+
 function parsaj(txt){
   const blob = String(txt||"").replace(/\u00a0/g," ");
+  const lukal = parsajLukAl(blob);
+  if(lukal.length) return lukal;
   const schue = parsajSchueCal(blob);
   if(schue.length) return schue;
   const out = [];
