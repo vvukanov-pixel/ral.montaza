@@ -223,23 +223,20 @@ function parsajLukAl(txt){
     if(seen.has(key)) continue;
     if(/transportni|ral\s*montaža|ral\s*montaza/i.test(part) && !/Elementma/i.test(part)) continue;
     if(/^poz\.\s*\d+\s+Montaža/i.test(part.trim()) && !/Elementma/i.test(part)) continue;
+    let wmm, hmm, kom = 1;
+    const tabovi = [...part.matchAll(/(?:^|\s)(\d{3,4})\s+(\d{3,4})\s+(\d+)[.,]00(?=\s)/g)];
+    const tab = tabovi.length ? tabovi[tabovi.length-1] : null;
     const em = part.match(/Elementma(?:ß|ss|s)\s*\[B\s*[x×]\s*H\]\s*:\s*(\d{3,4})\s*mm\s*[x×]\s*([\d.,]+)\s*mm/i);
-    let wmm, hmm;
-    if(em){
+    if(tab){
+      wmm = Number(tab[1]);
+      hmm = Number(tab[2]);
+      kom = Math.max(1, Number(tab[3])||1);
+    } else if(em){
       wmm = Number(em[1]);
       hmm = Math.round(Number(String(em[2]).replace(",",".")));
-    } else {
-      const tab = part.match(/(?:^|\s)(\d{3,4})\s+(\d{3,4})\s+(\d+)[.,]00\s/);
-      if(!tab) continue;
-      wmm = Number(tab[1]); hmm = Number(tab[2]);
-    }
+    } else continue;
     if(wmm<250 || hmm<250 || wmm>6000 || hmm>6000) continue;
     seen.add(key);
-    let kom = 1;
-    const k1 = part.match(/(\d+)\s*St(?:ü|u)ck/i);
-    const k2 = part.match(/(\d+)[.,]00\s+[\d.]+[.,]\d{2}/);
-    if(k1) kom = Math.max(1, Number(k1[1])||1);
-    else if(k2) kom = Math.max(1, Number(k2[1])||1);
     const tip = tipOtvor(part, hmm);
     const naziv = (/Schiebe|kliz/i.test(part) ? "Klizni" : /Türelement|Tür |vrata/i.test(part) ? "Vrata" : /Fenster/i.test(part) ? "Prozor" : "Otvor") + " "+key;
     out.push({naziv, wmm, hmm, kom, tip});
@@ -366,7 +363,7 @@ function crtaj(rebuild){
     if(lista){
       lista.innerHTML = otvori.map((o,i)=>`
         <div class="item">
-          <div style="display:flex;justify-content:space-between"><b>${o.naziv||"Otvor"} ${o.wmm||"?"}×${o.hmm||"?"} mm</b>
+          <div style="display:flex;justify-content:space-between"><b>${o.naziv||"Otvor"} ${o.wmm||"?"}×${o.hmm||"?"} mm · ${o.kom||1} kom · RAL ${fmt(2*((Number(o.wmm)||0)+(Number(o.hmm)||0))/1000*(Number(o.kom)||0))} m′</b>
             <button class="btn-del" onclick="brisi(${i})">Obriši</button></div>
           <div class="row2">
             <div><label>Širina mm</label><input value="${o.wmm}" onchange="setO(${i},'wmm',this.value)"></div>
