@@ -127,41 +127,79 @@ function danas(){
 function fmt(n){ return Number(n||0).toLocaleString("hr-HR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function v(id){ return document.getElementById(id).value; }
 
+function komBroj(o){
+  const k = Number(o && o.kom);
+  return Number.isFinite(k) && k > 0 ? k : 1;
+}
 function metara(rad){
   return otvori.reduce((s,o)=>{
     if(rad.tip==="prozor" && o.tip!=="prozor") return s;
     if(rad.tip==="pod" && o.tip!=="pod") return s;
-    const k = Number(o.kom)||0;
+    const k = komBroj(o);
     const w = (Number(o.wmm)||0)/1000;
     const h = (Number(o.hmm)||0)/1000;
     if(rad.baza==="opseg") return s + k*2*(w+h);
     return s + k*(w + (rad.plus||0));
   },0);
 }
+function citajKom(block){
+  const s = String(block||"").replace(/\u00a0/g," ");
+  let best = 1;
+  const uzmi = n => {
+    n = Number(n);
+    if(Number.isFinite(n) && n>=1 && n<=40) best = Math.max(best, Math.round(n));
+  };
+  let m;
+  const reSt = /St(?:ü|u|ue)ck:\s*(\d+)/gi;
+  while((m = reSt.exec(s))){
+    const pred = s.slice(Math.max(0,m.index-12), m.index);
+    if(/pro|gewicht|kg/i.test(pred)) continue;
+    uzmi(m[1]);
+  }
+  const reKol = /Koli[cč]ina:\s*(\d+)/gi;
+  while((m = reKol.exec(s))) uzmi(m[1]);
+  const reKom = /(\d+)\s*kom\b/gi;
+  while((m = reKom.exec(s))) uzmi(m[1]);
+  const reTab = /(\d{3,4})\s+(\d{3,4})\s+(\d+)[.,]00(?!\s*kg)/gi;
+  while((m = reTab.exec(s))) uzmi(m[3]);
+  const reCij = /(\d+)[.,]00\s+\d{1,3}(?:[.\s]\d{3})*[.,]\d{2}/g;
+  while((m = reCij.exec(s))) uzmi(m[1]);
+  return best;
+}
 
+function ocistiImeKupca(ime){
+  ime = String(ime||"").replace(/\s+/g," ").trim();
+  ime = ime.split(/\s+(?:Ul\.|Ulica|Adresa|OIB|MB|Predmet|Pozivom|Ponuda|Postovani|DIMENZIJA|POZ\.|Profilsystem)/i)[0].trim();
+  ime = ime.replace(/[.,;:]+$/,"").trim();
+  if(ime.length<3) return "";
+  if(/portal montaža|portal montaza|marlex|lukal|feal|aluplast/i.test(ime)) return "";
+  return ime;
+}
 function parsajKupac(txt){
-  const raw = String(txt||"").replace(/\u00a0/g," ").replace(/\s+/g," ").trim();
+  const raw = String(txt||"")
+    .replace(/\u00a0/g," ")
+    .replace(/\s+/g," ")
+    .replace(/\b([djl])\s*\.\s*o\s*\.\s*o\s*\.?/gi,"$1.o.o.")
+    .trim();
+  const labeled = raw.match(/(?:kupac|naručitelj|narucitelj|klijent|investor)\s*[:\-]\s*(.+?)(?=\s+(?:OIB|MB|Adresa|Ul\.|Ulica|Objekt|Predmet|Ponuda|Pozicija|POZ\.)|$)/i);
+  if(labeled){
+    const ime = ocistiImeKupca(labeled[1]);
+    if(ime) return ime;
+  }
+  const firme = raw.match(/([A-ZČĆŽŠĐ][A-ZČĆŽŠĐa-zčćžšđ0-9.&\/\- ]{1,50}?\s*(?:d\.o\.o\.|j\.d\.o\.o\.|d\.o\.o|obrt|s\.p\.))/gi) || [];
+  for(const f of firme){
+    const ime = ocistiImeKupca(f);
+    if(ime) return ime;
+  }
   const proj = raw.match(/Projektbezeichnung:\s*([^\n\r]+)/i);
   if(proj){
-    const ime = proj[1].replace(/\s+/g," ").trim();
+    const ime = ocistiImeKupca(proj[1]);
     if(ime && !/nein|keine|n\/a/i.test(ime)) return ime;
   }
-  const obj = raw.match(/Objekt:\s*([A-ZČĆŽŠĐ0-9][^,\n]{2,60})/i);
+  const obj = raw.match(/Objekt:\s*([A-ZČĆŽŠĐ0-9][^,]{2,50})/i);
   if(obj){
-    const ime = obj[1].replace(/\s+/g," ").trim().split(/\s+Predmet|\s+Pozivom/i)[0].trim();
-    if(ime.length>=3) return ime;
-  }
-  const labeled = raw.match(/(?:kupac|naručitelj|narucitelj|klijent|investor)\s*[:\-]\s*([A-ZČĆŽŠĐ0-9][^,\n]{2,80})/i);
-  if(labeled){
-    let ime = labeled[1].replace(/\s{2,}/g," ").trim();
-    ime = ime.split(/\s+(?:Ul\.|Ulica|Adresa|OIB|MB|20000|Ponuda|Postovani)/i)[0].trim();
-    if(ime.length>=3 && !/portal/i.test(ime)) return ime;
-  }
-  const firme = raw.match(/([A-ZČĆŽŠĐ][A-ZČĆŽŠĐa-zčćžšđ0-9.&\/\- ]{2,60}\s*(?:d\.?\s*o\.?\s*o\.?|j\.?\s*d\.?\s*o\.?\s*o\.?|obrt|s\.p\.))/gi) || [];
-  for(const f of firme){
-    const ime = f.replace(/\s+/g," ").trim();
-    if(/portal|marlex|aluplast|feal|lukal/i.test(ime)) continue;
-    if(ime.length>=4) return ime;
+    const ime = ocistiImeKupca(obj[1]);
+    if(ime) return ime;
   }
   return "";
 }
@@ -200,9 +238,7 @@ function parsajSchueCal(txt){
     if(seen.has(key)) continue;
     seen.add(key);
     const block = part.split(/Position:\s*/i)[0];
-    const st = block.match(/St(?:ü|u|ue)ck:\s*(\d+)/i);
-    let kom = st ? Math.max(1, Number(st[1])||1) : 1;
-    if(key === "poz.12") kom = 2;
+    const kom = citajKom(block);
     const dim = SCHUE_DIM[key];
     if(!dim) continue;
     out.push({naziv:"Poz. "+key.replace("poz.",""), wmm:dim[0], hmm:dim[1], kom, tip: tipOtvor(key, dim[1])});
@@ -230,11 +266,11 @@ function parsajLukAl(txt){
     if(tab){
       wmm = Number(tab[1]);
       hmm = Number(tab[2]);
-      kom = Math.max(1, Number(tab[3])||1);
     } else if(em){
       wmm = Number(em[1]);
       hmm = Math.round(Number(String(em[2]).replace(",",".")));
     } else continue;
+    kom = citajKom(part);
     if(wmm<250 || hmm<250 || wmm>6000 || hmm>6000) continue;
     seen.add(key);
     const tip = tipOtvor(part, hmm);
@@ -261,7 +297,7 @@ function parsaj(txt){
     out.push({
       naziv: nazivOtvor(m[2]) + " poz." + m[1],
       wmm, hmm,
-      kom: Math.max(1, Number(m[3])||1),
+      kom: Math.max(citajKom(m[0]), Number(m[3])||1),
       tip: tipOtvor(m[2], hmm)
     });
   }
@@ -274,9 +310,7 @@ function parsaj(txt){
     if(wmm<250 || hmm<250 || wmm>5000 || hmm>5000) continue;
     const around = flat.slice(Math.max(0,m.index-120), m.index+40);
     const after = flat.slice(m.index, m.index+900);
-    let kom = 1;
-    const km = after.match(/(\d+(?:\.\d+)?)\s*(?:kom|koli[cč]ina)/i);
-    if(km) kom = Math.max(1, Math.round(Number(km[1])));
+    const kom = citajKom(around + " " + after);
     out.push({naziv: nazivOtvor(around), wmm, hmm, kom, tip: tipOtvor(around, hmm)});
   }
   return out;
@@ -297,7 +331,7 @@ async function ucitaj(el){
       for(let i=1;i<=pdf.numPages;i++){
         const page = await pdf.getPage(i);
         const c = await page.getTextContent();
-        text += c.items.map(x=>x.str).join(" ") + "\n";
+        text += c.items.map(x=>x.str).join(" ").replace(/\s+/g," ") + "\n";
         const vp = page.getViewport({scale: 1.5});
         const canvas = document.createElement("canvas");
         canvas.width = vp.width; canvas.height = vp.height;
@@ -336,8 +370,10 @@ async function ucitaj(el){
     if(ime){
       kupacEl.value = ime;
     }
+    const komSve = found.reduce((a,o)=>a+komBroj(o),0);
+    const ralM = found.reduce((a,o)=>a+komBroj(o)*2*((Number(o.wmm)||0)+(Number(o.hmm)||0))/1000,0);
     info.className = "ok";
-    info.textContent = "Učitano otvora: " + found.length + (ime ? ". Kupac: " + ime : ". Kupca nisam našao — upiši ručno.");
+    info.textContent = "Učitano pozicija: "+found.length+" · komada: "+komSve+" · RAL opseg: "+fmt(ralM)+" m′" + (ime ? " · Kupac: "+ime : "");
     crtaj(true);
   }catch(e){
     info.className = "warn";
