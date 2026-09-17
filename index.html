@@ -167,13 +167,30 @@ function citajKom(block){
   return best;
 }
 
+function jeDobavljac(ime){
+  return /portal|marlex|lukal|feal|aluplast|msd|schüco|schuco/i.test(String(ime||""));
+}
 function ocistiImeKupca(ime){
   ime = String(ime||"").replace(/\s+/g," ").trim();
-  ime = ime.split(/\s+(?:Ul\.|Ulica|Adresa|OIB|MB|Predmet|Pozivom|Ponuda|Postovani|DIMENZIJA|POZ\.|Profilsystem)/i)[0].trim();
+  ime = ime.split(/\s+(?:Ul\.|Ulica|Adresa|OIB|MB|Predmet|Pozivom|Ponuda|Postovani|DIMENZIJA|POZ\.|Profilsystem|Vaš kontakt|Vas kontakt)/i)[0].trim();
   ime = ime.replace(/[.,;:]+$/,"").trim();
-  if(ime.length<3) return "";
-  if(/portal montaža|portal montaza|marlex|lukal|feal|aluplast/i.test(ime)) return "";
+  if(ime.length<3 || ime.length>80) return "";
+  if(jeDobavljac(ime)) return "";
+  if(/godišnj|servisir|otvora od strane|poklanjamo|pozivom/i.test(ime)) return "";
   return ime;
+}
+function imeIzZaglavlja(blok){
+  const posta = /([A-ZČĆŽŠĐa-zčćžšđ0-9.&'\/\- ]{3,80}?)\s+\d{5}\s+[A-ZČĆŽŠĐ]{3,}/g;
+  let pm;
+  while((pm = posta.exec(blok))){
+    let toks = pm[1].trim().split(/\s+/).filter(Boolean);
+    while(toks.length && /^\d+[A-Za-z]?$/.test(toks[toks.length-1])) toks.pop();
+    if(toks.length>=2 && /^(ulica|ul\.|put|obala|naselje|hodilje|kralja|kraljice)$/i.test(toks[toks.length-1])) toks.pop();
+    toks = toks.slice(-5);
+    const ime = ocistiImeKupca(toks.join(" "));
+    if(ime && !/postovani|pozivom|ponuda|kontakt/i.test(ime)) return ime;
+  }
+  return "";
 }
 function parsajKupac(txt){
   const raw = String(txt||"")
@@ -181,16 +198,27 @@ function parsajKupac(txt){
     .replace(/\s+/g," ")
     .replace(/\b([djl])\s*\.\s*o\s*\.\s*o\s*\.?/gi,"$1.o.o.")
     .trim();
-  const labeled = raw.match(/(?:kupac|naručitelj|narucitelj|klijent|investor)\s*[:\-]\s*(.+?)(?=\s+(?:OIB|MB|Adresa|Ul\.|Ulica|Objekt|Predmet|Ponuda|Pozicija|POZ\.)|$)/i);
+
+  const izZag = imeIzZaglavlja(raw.slice(0, 1800)) || imeIzZaglavlja(raw);
+  if(izZag) return izZag;
+  const predOib = raw.match(/([A-ZČĆŽŠĐ][A-ZČĆŽŠĐa-zčćžšđ0-9.&'\/\- ]{2,40})\s+OIB\s*:?\s*\d{8,11}/i);
+  if(predOib){
+    const ime = ocistiImeKupca(predOib[1].split(/\s+/).slice(0,4).join(" "));
+    if(ime) return ime;
+  }
+
+  const labeled = raw.match(/(?:kupac|naručitelj|narucitelj|klijent|investor)\s*[:\-]\s*(.+?)(?=\s+(?:OIB|MB|Adresa|Ul\.|Ulica|Objekt|Predmet|Ponuda|Pozicija|POZ\.|20\d{3})|$)/i);
   if(labeled){
     const ime = ocistiImeKupca(labeled[1]);
     if(ime) return ime;
   }
+
   const firme = raw.match(/([A-ZČĆŽŠĐ][A-ZČĆŽŠĐa-zčćžšđ0-9.&\/\- ]{1,50}?\s*(?:d\.o\.o\.|j\.d\.o\.o\.|d\.o\.o|obrt|s\.p\.))/gi) || [];
   for(const f of firme){
     const ime = ocistiImeKupca(f);
     if(ime) return ime;
   }
+
   const proj = raw.match(/Projektbezeichnung:\s*([^\n\r]+)/i);
   if(proj){
     const ime = ocistiImeKupca(proj[1]);
