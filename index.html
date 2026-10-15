@@ -308,12 +308,65 @@ function parsajLukAl(txt){
   return out;
 }
 
+function parsajMarlex(txt){
+  const blob = String(txt||"").replace(/\u00a0/g," ");
+  if(!/MARLEX|Aluplast_NEO|Aluplast HST|Aluplast SMART SLIDE|Woodec/i.test(blob)) return [];
+  const out = [];
+  // Hvata SAMO obrazac "970x2580 Woodec ... : 970x2580 mm" - ista dimenzija ponovljena
+  // uz rije\u010d "Woodec"/materijal izme\u0111u. Ovo se NIKAD ne poklapa slu\u010dajno s brojevima
+  // sa tehni\u010dke skice (koji nemaju taj obrazac), pa se otvori vi\u0161e ne dupliciraju
+  // niti se ne izmi\u0161ljaju la\u017eni otvori iz internih mjera na crte\u017eu.
+  const re = /(\d{3,4})\s*[x\u00d7]\s*(\d{3,4})\s+\S[^:]{0,80}?:\s*(\d{3,4})\s*[x\u00d7]\s*(\d{3,4})\s*mm/gi;
+  let mm;
+  while((mm = re.exec(blob))){
+    const w1=Number(mm[1]), h1=Number(mm[2]), w2=Number(mm[3]), h2=Number(mm[4]);
+    if(w1!==w2 || h1!==h2) continue;
+    if(w1<250||h1<250||w1>6000||h1>6000) continue;
+    const after = blob.slice(mm.index, mm.index+1600);
+    const komM = after.match(/(\d{1,2})[.,]00\s*Kom/i);
+    const kom = komM ? Number(komM[1]) : 1;
+    const okolo = blob.slice(Math.max(0,mm.index-60), mm.index+60);
+    out.push({naziv: nazivOtvor(okolo), wmm:w1, hmm:h1, kom, tip: tipOtvor(okolo, h1)});
+  }
+  return out;
+}
+
+function parsajSkice(txt){
+  const blob = String(txt||"").replace(/\u00a0/g," ");
+  if(!/^Skice\s|Skice\s+P-\d/im.test(blob)) return [];
+  const out = [];
+  // Svaki stvarni otvor (prozor/vrata) opisan je u uglatim zagradama koje sadrze dimenziju.
+  // Griljaze (ALU grilja) montiraju se NA vec postojeci otvor i NE racunaju se zasebno za RAL -
+  // zato se ovdje izricito izbacuju iz zbroja.
+  const re = /\[([^\]]*?(\d{3,4})\s*[x\u00d7]\s*(\d{3,4})[^\]]*)\]/gi;
+  let mm;
+  while((mm = re.exec(blob))){
+    const opis = mm[1];
+    if(/grilj/i.test(opis)) continue;
+    const wmm = Number(mm[2]), hmm = Number(mm[3]);
+    if(wmm<250||hmm<250||wmm>6000||hmm>6000) continue;
+    const before = blob.slice(Math.max(0, mm.index-250), mm.index);
+    const after = blob.slice(mm.index, mm.index+250);
+    const kb = [...before.matchAll(/Koli[c\u010d]ina:\s*(\d+)/gi)];
+    const ka = [...after.matchAll(/Koli[c\u010d]ina:\s*(\d+)/gi)];
+    let kom = 1;
+    if(ka.length) kom = Number(ka[0][1]);
+    else if(kb.length) kom = Number(kb[kb.length-1][1]);
+    out.push({naziv: nazivOtvor(opis), wmm, hmm, kom, tip: tipOtvor(opis, hmm)});
+  }
+  return out;
+}
+
 function parsaj(txt){
   const blob = String(txt||"").replace(/\u00a0/g," ");
   const lukal = parsajLukAl(blob);
   if(lukal.length) return lukal;
   const schue = parsajSchueCal(blob);
   if(schue.length) return schue;
+  const marlex = parsajMarlex(blob);
+  if(marlex.length) return marlex;
+  const skice = parsajSkice(blob);
+  if(skice.length) return skice;
   const out = [];
   const portal = /Pozicija:\s*(\d+)\s*\[([^\]]*?)\]\s*Koli[cč]ina:\s*(\d+)/gi;
   let m;
@@ -333,13 +386,21 @@ function parsaj(txt){
 
   const re = /(\d{3,4})\s*[x×]\s*(\d{3,4})(?:\s*mm)?/ig;
   const flat = blob.replace(/,/g,".");
+  let lastW = null, lastH = null, lastIdx = -999999;
   while((m = re.exec(flat))){
     const wmm = Number(m[1]), hmm = Number(m[2]);
     if(wmm<250 || hmm<250 || wmm>5000 || hmm>5000) continue;
+    // Ista dimenzija ponovljena unutar kratkog razmaka teksta (npr. naziv pozicije
+    // + ponovljeni opis dekora u istom retku) je ISTI otvor, ne novi — ne broji dvaput.
+    if(wmm===lastW && hmm===lastH && (m.index-lastIdx)<300){
+      lastIdx = m.index;
+      continue;
+    }
     const around = flat.slice(Math.max(0,m.index-120), m.index+40);
     const after = flat.slice(m.index, m.index+900);
     const kom = citajKom(around + " " + after);
     out.push({naziv: nazivOtvor(around), wmm, hmm, kom, tip: tipOtvor(around, hmm)});
+    lastW = wmm; lastH = hmm; lastIdx = m.index;
   }
   return out;
 }
