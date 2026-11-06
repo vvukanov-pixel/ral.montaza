@@ -131,8 +131,31 @@ function komBroj(o){
   const k = Number(o && o.kom);
   return Number.isFinite(k) && k > 0 ? k : 1;
 }
+// Grilje (ALU griljaže/škure) i komarnici montiraju se NA postojeći otvor —
+// ne rade se RAL-om i ne ulaze ni u jedan zbroj. Prepoznaje se po prvoj
+// ključnoj riječi u opisu pozicije: "Komarnik za prozor" = dodatak,
+// "Prozor 2-krilni s komarnikom" = prozor.
+const RE_DODATAK = /grilj|škur|skur|komarn|insektenschutz|insekten|fliegengitter|fensterladen|klappladen|schiebeladen|plissee/i;
+const RE_OTVOR = /prozor|vrata|balkon|fenster(?!laden)|t(?:ü|u|ue)r|hst|klizn|slide|schiebe(?!laden)|stijen/i;
+function jeDodatak(txt){
+  const s = String(txt||"");
+  const d = s.search(RE_DODATAK);
+  if(d<0) return false;
+  const o = s.search(RE_OTVOR);
+  return o<0 || d<=o;
+}
+function oznaci(o, opis){
+  if(jeDodatak(opis)){
+    o.tip = "dodatak";
+    const rij = (String(opis).match(RE_DODATAK)||[""])[0];
+    const vrsta = /komarn|insekt|fliegen|plissee/i.test(rij) ? "Komarnik" : "Grilja";
+    o.naziv = vrsta + (/poz/i.test(o.naziv||"") ? " "+String(o.naziv).replace(/^(Otvor|Prozor|Vrata|Klizni|HST|Stijena)\s*/,"") : "");
+  }
+  return o;
+}
 function metara(rad){
   return otvori.reduce((s,o)=>{
+    if(o.tip==="dodatak") return s;
     if(rad.tip==="prozor" && o.tip!=="prozor") return s;
     if(rad.tip==="pod" && o.tip!=="pod") return s;
     const k = komBroj(o);
@@ -269,7 +292,7 @@ function parsajSchueCal(txt){
     const kom = citajKom(block);
     const dim = SCHUE_DIM[key];
     if(!dim) continue;
-    out.push({naziv:"Poz. "+key.replace("poz.",""), wmm:dim[0], hmm:dim[1], kom, tip: tipOtvor(key, dim[1])});
+    out.push(oznaci({naziv:"Poz. "+key.replace("poz.",""), wmm:dim[0], hmm:dim[1], kom, tip: tipOtvor(key, dim[1])}, block.slice(0,300)));
   }
   return out;
 }
@@ -303,7 +326,7 @@ function parsajLukAl(txt){
     seen.add(key);
     const tip = tipOtvor(part, hmm);
     const naziv = (/Schiebe|kliz/i.test(part) ? "Klizni" : /Türelement|Tür |vrata/i.test(part) ? "Vrata" : /Fenster/i.test(part) ? "Prozor" : "Otvor") + " "+key;
-    out.push({naziv, wmm, hmm, kom, tip});
+    out.push(oznaci({naziv, wmm, hmm, kom, tip}, part.replace(/^poz\.\s*\d+/i,"").slice(0,400)));
   }
   return out;
 }
@@ -326,7 +349,8 @@ function parsajMarlex(txt){
     const komM = after.match(/(\d{1,2})[.,]00\s*Kom/i);
     const kom = komM ? Number(komM[1]) : 1;
     const okolo = blob.slice(Math.max(0,mm.index-60), mm.index+60);
-    out.push({naziv: nazivOtvor(okolo), wmm:w1, hmm:h1, kom, tip: tipOtvor(okolo, h1)});
+    const pocetak = blob.slice(Math.max(0, mm.index-120), mm.index);
+    out.push(oznaci({naziv: nazivOtvor(okolo), wmm:w1, hmm:h1, kom, tip: tipOtvor(okolo, h1)}, pocetak.split(/poz(?:icija)?\.?\s*\d+/i).pop() + blob.slice(mm.index, mm.index+80)));
   }
   return out;
 }
@@ -342,7 +366,6 @@ function parsajSkice(txt){
   let mm;
   while((mm = re.exec(blob))){
     const opis = mm[1];
-    if(/grilj/i.test(opis)) continue;
     const wmm = Number(mm[2]), hmm = Number(mm[3]);
     if(wmm<250||hmm<250||wmm>6000||hmm>6000) continue;
     const before = blob.slice(Math.max(0, mm.index-250), mm.index);
@@ -352,7 +375,7 @@ function parsajSkice(txt){
     let kom = 1;
     if(ka.length) kom = Number(ka[0][1]);
     else if(kb.length) kom = Number(kb[kb.length-1][1]);
-    out.push({naziv: nazivOtvor(opis), wmm, hmm, kom, tip: tipOtvor(opis, hmm)});
+    out.push(oznaci({naziv: nazivOtvor(opis), wmm, hmm, kom, tip: tipOtvor(opis, hmm)}, opis));
   }
   return out;
 }
@@ -375,31 +398,38 @@ function parsaj(txt){
     if(!dim) continue;
     const wmm = Number(dim[1]), hmm = Number(dim[2]);
     if(wmm<250 || hmm<250 || wmm>5000 || hmm>5000) continue;
-    out.push({
+    out.push(oznaci({
       naziv: nazivOtvor(m[2]) + " poz." + m[1],
       wmm, hmm,
       kom: Math.max(citajKom(m[0]), Number(m[3])||1),
       tip: tipOtvor(m[2], hmm)
-    });
+    }, m[2]));
   }
   if(out.length) return out;
 
   const re = /(\d{3,4})\s*[x×]\s*(\d{3,4})(?:\s*mm)?/ig;
   const flat = blob.replace(/,/g,".");
-  let lastW = null, lastH = null, lastIdx = -999999;
+  let lastW = null, lastH = null, lastIdx = -999999, prevEnd = 0;
   while((m = re.exec(flat))){
     const wmm = Number(m[1]), hmm = Number(m[2]);
     if(wmm<250 || hmm<250 || wmm>5000 || hmm>5000) continue;
+    // opis SAMO ove pozicije: od kraja prethodne mjere (ili zadnje oznake pozicije) do mjere
+    let opisPoz = flat.slice(Math.max(0, prevEnd, m.index-150), m.index);
+    opisPoz = opisPoz.split(/(?:poz(?:icija)?\.?:?\s*\d+|\n)/i).pop();
+    const krajMjere = m.index + m[0].length;
     // Ista dimenzija ponovljena unutar kratkog razmaka teksta (npr. naziv pozicije
     // + ponovljeni opis dekora u istom retku) je ISTI otvor, ne novi — ne broji dvaput.
-    if(wmm===lastW && hmm===lastH && (m.index-lastIdx)<300){
-      lastIdx = m.index;
+    // Iznimka: ako se izmedju pojavi grilja/komarnik, to je nova stavka iste mjere.
+    if(wmm===lastW && hmm===lastH && (m.index-lastIdx)<300 && !RE_DODATAK.test(opisPoz)){
+      lastIdx = m.index; prevEnd = krajMjere;
       continue;
     }
+    opisPoz += flat.slice(m.index, m.index+40);
     const around = flat.slice(Math.max(0,m.index-120), m.index+40);
     const after = flat.slice(m.index, m.index+900);
     const kom = citajKom(around + " " + after);
-    out.push({naziv: nazivOtvor(around), wmm, hmm, kom, tip: tipOtvor(around, hmm)});
+    out.push(oznaci({naziv: nazivOtvor(around), wmm, hmm, kom, tip: tipOtvor(around, hmm)}, opisPoz));
+    prevEnd = krajMjere;
     lastW = wmm; lastH = hmm; lastIdx = m.index;
   }
   return out;
@@ -459,10 +489,12 @@ async function ucitaj(el){
     if(ime){
       kupacEl.value = ime;
     }
-    const komSve = found.reduce((a,o)=>a+komBroj(o),0);
-    const ralM = found.reduce((a,o)=>a+komBroj(o)*2*((Number(o.wmm)||0)+(Number(o.hmm)||0))/1000,0);
+    const otv = found.filter(o=>o.tip!=="dodatak");
+    const dod = found.length - otv.length;
+    const komSve = otv.reduce((a,o)=>a+komBroj(o),0);
+    const ralM = otv.reduce((a,o)=>a+komBroj(o)*2*((Number(o.wmm)||0)+(Number(o.hmm)||0))/1000,0);
     info.className = "ok";
-    info.textContent = "Učitano pozicija: "+found.length+" · komada: "+komSve+" · RAL opseg: "+fmt(ralM)+" m′" + (ime ? " · Kupac: "+ime : "");
+    info.textContent = "Učitano otvora: "+otv.length+" · komada: "+komSve+" · RAL opseg: "+fmt(ralM)+" m′" + (dod ? " · grilje/komarnici ne ulaze u zbroj: "+dod : "") + (ime ? " · Kupac: "+ime : "");
     crtaj(true);
   }catch(e){
     info.className = "warn";
@@ -475,7 +507,7 @@ function dodaj(){
   crtaj(true);
 }
 function brisi(i){ otvori.splice(i,1); crtaj(true); }
-function setO(i,k,val){ otvori[i][k]=val; crtaj(false); }
+function setO(i,k,val){ otvori[i][k]=val; crtaj(k==="tip"); }
 function setCijena(id, val){
   cijena[id]=val;
   try{ localStorage.setItem("ral-cijene-v2", JSON.stringify(cijena)); }catch(e){}
@@ -488,7 +520,7 @@ function crtaj(rebuild){
     if(lista){
       lista.innerHTML = otvori.map((o,i)=>`
         <div class="item">
-          <div style="display:flex;justify-content:space-between"><b>${o.naziv||"Otvor"} ${o.wmm||"?"}×${o.hmm||"?"} mm · ${o.kom||1} kom · RAL ${fmt(2*((Number(o.wmm)||0)+(Number(o.hmm)||0))/1000*(Number(o.kom)||0))} m′</b>
+          <div style="display:flex;justify-content:space-between"><b>${o.naziv||"Otvor"} ${o.wmm||"?"}×${o.hmm||"?"} mm · ${o.kom||1} kom · ${o.tip==="dodatak" ? "NE ULAZI U ZBROJ" : "RAL "+fmt(2*((Number(o.wmm)||0)+(Number(o.hmm)||0))/1000*(Number(o.kom)||0))+" m′"}</b>
             <button class="btn-del" onclick="brisi(${i})">Obriši</button></div>
           <div class="row2">
             <div><label>Širina mm</label><input value="${o.wmm}" onchange="setO(${i},'wmm',this.value)"></div>
@@ -500,6 +532,7 @@ function crtaj(rebuild){
               <select onchange="setO(${i},'tip',this.value)">
                 <option value="prozor" ${o.tip==="prozor"?"selected":""}>Prozor (klupica)</option>
                 <option value="pod" ${o.tip==="pod"?"selected":""}>Do poda / balkon / vrata</option>
+                <option value="dodatak" ${o.tip==="dodatak"?"selected":""}>Grilja / komarnik (ne računa se)</option>
               </select>
             </div>
           </div>
