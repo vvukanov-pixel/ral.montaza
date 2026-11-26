@@ -88,10 +88,10 @@ const RADOVI = [
   {id:"ral", naziv:"RAL montaža", kako:"Zbroj svih 4 strane svih otvora", tip:"svi", plus:0, baza:"opseg"},
   {id:"izolacija", naziv:"Izolacija podštokova (izolacija + betonska ploča)", kako:"Samo donja širina + 20 cm", tip:"svi", plus:0.20, baza:"donja"},
   {id:"epdm", naziv:"Ugradnja EPDM folije (priprema klupica)", kako:"Donja baza širine otvora", tip:"svi", plus:0, baza:"donja"},
-  {id:"ps100", naziv:"Ugradnja podštokova širine 100 cm", kako:"Donja baza otvora do poda", tip:"pod", plus:0, baza:"donja"},
-  {id:"ps6", naziv:"Ugradnja podštokova širine 6 cm", kako:"Donja baza otvora do poda", tip:"pod", plus:0, baza:"donja"},
-  {id:"ps35", naziv:"Ugradnja podštokova širine 3,5 cm", kako:"Donja baza otvora do poda", tip:"pod", plus:0, baza:"donja"},
-  {id:"ps15", naziv:"Ugradnja podštokova širine 1,5 cm", kako:"Donja baza otvora do poda", tip:"pod", plus:0, baza:"donja"},
+  {id:"ps100", naziv:"Ugradnja podštokova širine 100 mm", kako:"Donja baza kliznih, balkonskih i ulaznih vrata (do poda)", tip:"pod", plus:0, baza:"donja"},
+  {id:"ps6", naziv:"Ugradnja podštokova širine 60 mm", kako:"Donja baza kliznih, balkonskih i ulaznih vrata (do poda)", tip:"pod", plus:0, baza:"donja"},
+  {id:"ps35", naziv:"Ugradnja podštokova širine 35 mm", kako:"Donja baza samo prozora", tip:"prozor", plus:0, baza:"donja"},
+  {id:"ps15", naziv:"Ugradnja podštokova širine 15 mm", kako:"Donja baza samo prozora", tip:"prozor", plus:0, baza:"donja"},
   {id:"kl23", naziv:"Ugradnja ALU klupice razvijene širine 23 cm", kako:"Donja baza samo prozora", tip:"prozor", plus:0, baza:"donja"},
   {id:"kl21", naziv:"Ugradnja ALU klupice razvijene širine 21 cm", kako:"Donja baza samo prozora", tip:"prozor", plus:0, baza:"donja"},
   {id:"kl19", naziv:"Ugradnja ALU klupice razvijene širine 19 cm", kako:"Donja baza samo prozora", tip:"prozor", plus:0, baza:"donja"},
@@ -257,7 +257,7 @@ function parsajKupac(txt){
 
 function tipOtvor(txt, hmm){
   const s = String(txt||"").toLowerCase();
-  if(/(vrata|balkon|do\s*poda|hst|slide|stijena|kliz)/.test(s) || Number(hmm)>=1800) return "pod";
+  if(/(vrata|balkon|do\s*poda|hst|slide|stijena|kliz|hebeschiebe|schiebet(?:ü|u|ue)r|fenstert(?:ü|u|ue)r|haust(?:ü|u|ue)r|t(?:ü|u|ue)relement)/.test(s) || Number(hmm)>=1800) return "pod";
   return "prozor";
 }
 function nazivOtvor(txt){
@@ -292,7 +292,7 @@ function parsajSchueCal(txt){
     const kom = citajKom(block);
     const dim = SCHUE_DIM[key];
     if(!dim) continue;
-    out.push(oznaci({naziv:"Poz. "+key.replace("poz.",""), wmm:dim[0], hmm:dim[1], kom, tip: tipOtvor(key, dim[1])}, block.slice(0,300)));
+    out.push(oznaci({naziv:"Poz. "+key.replace("poz.",""), wmm:dim[0], hmm:dim[1], kom, tip: tipOtvor(block.slice(0,300), dim[1])}, block.slice(0,300)));
   }
   return out;
 }
@@ -350,7 +350,8 @@ function parsajMarlex(txt){
     const kom = komM ? Number(komM[1]) : 1;
     const okolo = blob.slice(Math.max(0,mm.index-60), mm.index+60);
     const pocetak = blob.slice(Math.max(0, mm.index-120), mm.index);
-    out.push(oznaci({naziv: nazivOtvor(okolo), wmm:w1, hmm:h1, kom, tip: tipOtvor(okolo, h1)}, pocetak.split(/poz(?:icija)?\.?\s*\d+/i).pop() + blob.slice(mm.index, mm.index+80)));
+    const svojOpis = pocetak.split(/poz(?:icija)?\.?\s*\d+/i).pop() + blob.slice(mm.index, mm.index+80);
+    out.push(oznaci({naziv: (nazivOtvor(svojOpis)!=="Otvor" ? nazivOtvor(svojOpis) : nazivOtvor(okolo)), wmm:w1, hmm:h1, kom, tip: tipOtvor(svojOpis, h1)}, svojOpis));
   }
   return out;
 }
@@ -428,7 +429,7 @@ function parsaj(txt){
     const around = flat.slice(Math.max(0,m.index-120), m.index+40);
     const after = flat.slice(m.index, m.index+900);
     const kom = citajKom(around + " " + after);
-    out.push(oznaci({naziv: nazivOtvor(around), wmm, hmm, kom, tip: tipOtvor(around, hmm)}, opisPoz));
+    out.push(oznaci({naziv: nazivOtvor(opisPoz), wmm, hmm, kom, tip: tipOtvor(opisPoz, hmm)}, opisPoz));
     prevEnd = krajMjere;
     lastW = wmm; lastH = hmm; lastIdx = m.index;
   }
