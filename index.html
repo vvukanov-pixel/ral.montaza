@@ -257,7 +257,10 @@ function parsajKupac(txt){
 
 function tipOtvor(txt, hmm){
   const s = String(txt||"").toLowerCase();
-  if(/(vrata|balkon|do\s*poda|hst|slide|stijena|kliz|hebeschiebe|schiebet(?:ü|u|ue)r|fenstert(?:ü|u|ue)r|haust(?:ü|u|ue)r|t(?:ü|u|ue)relement)/.test(s) || Number(hmm)>=1800) return "pod";
+  if(/(vrata|balkon|do\s*poda|hst|slide|stijena|kliz|hebeschiebe|schiebet(?:ü|u|ue)r|fenstert(?:ü|u|ue)r|haust(?:ü|u|ue)r|t(?:ü|u|ue)relement)/.test(s)) return "pod";
+  // 26.11.2026: prozor je prozor i kad je visok — ALU klupica ide na sve prozorske otvore
+  if(/prozor|fenster/.test(s)) return "prozor";
+  if(Number(hmm)>=1800) return "pod";
   return "prozor";
 }
 function nazivOtvor(txt){
