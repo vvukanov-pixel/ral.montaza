@@ -256,12 +256,8 @@ function parsajKupac(txt){
 }
 
 function tipOtvor(txt, hmm){
-  const s = String(txt||"").toLowerCase();
-  if(/(vrata|balkon|do\s*poda|hst|slide|stijena|kliz|hebeschiebe|schiebet(?:ü|u|ue)r|fenstert(?:ü|u|ue)r|haust(?:ü|u|ue)r|t(?:ü|u|ue)relement)/.test(s)) return "pod";
-  // 26.11.2026: prozor je prozor i kad je visok — ALU klupica ide na sve prozorske otvore
-  if(/prozor|fenster/.test(s)) return "prozor";
-  if(Number(hmm)>=1800) return "pod";
-  return "prozor";
+  // 26.11.2026 (Vedran): odlučuje samo visina — preko 2000 mm = otvor do poda, do 2000 mm = prozorski otvor
+  return Number(hmm) > 2000 ? "pod" : "prozor";
 }
 function nazivOtvor(txt){
   const s = String(txt||"").toLowerCase();
@@ -511,7 +507,12 @@ function dodaj(){
   crtaj(true);
 }
 function brisi(i){ otvori.splice(i,1); crtaj(true); }
-function setO(i,k,val){ otvori[i][k]=val; crtaj(k==="tip"); }
+function setO(i,k,val){
+  otvori[i][k]=val;
+  // promjena visine sama prebaci vrstu (preko 2000 mm = do poda), osim za grilje/komarnike
+  if(k==="hmm" && otvori[i].tip!=="dodatak"){ otvori[i].tip = tipOtvor("", val); crtaj(true); return; }
+  crtaj(k==="tip");
+}
 function setCijena(id, val){
   cijena[id]=val;
   try{ localStorage.setItem("ral-cijene-v2", JSON.stringify(cijena)); }catch(e){}
