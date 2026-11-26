@@ -322,7 +322,7 @@ function parsajLukAl(txt){
       hmm = Math.round(Number(String(em[2]).replace(",",".")));
     } else continue;
     kom = citajKom(part);
-    if(wmm<250 || hmm<250 || wmm>6000 || hmm>6000) continue;
+    if(wmm<250 || hmm<250 || wmm>15000 || hmm>6000) continue;
     seen.add(key);
     const tip = tipOtvor(part, hmm);
     const naziv = (/Schiebe|kliz/i.test(part) ? "Klizni" : /Türelement|Tür |vrata/i.test(part) ? "Vrata" : /Fenster/i.test(part) ? "Prozor" : "Otvor") + " "+key;
@@ -344,7 +344,7 @@ function parsajMarlex(txt){
   while((mm = re.exec(blob))){
     const w1=Number(mm[1]), h1=Number(mm[2]), w2=Number(mm[3]), h2=Number(mm[4]);
     if(w1!==w2 || h1!==h2) continue;
-    if(w1<250||h1<250||w1>6000||h1>6000) continue;
+    if(w1<250||h1<250||w1>15000||h1>6000) continue;
     const after = blob.slice(mm.index, mm.index+1600);
     const komM = after.match(/(\d{1,2})[.,]00\s*Kom/i);
     const kom = komM ? Number(komM[1]) : 1;
@@ -367,7 +367,7 @@ function parsajSkice(txt){
   while((mm = re.exec(blob))){
     const opis = mm[1];
     const wmm = Number(mm[2]), hmm = Number(mm[3]);
-    if(wmm<250||hmm<250||wmm>6000||hmm>6000) continue;
+    if(wmm<250||hmm<250||wmm>15000||hmm>6000) continue;
     const before = blob.slice(Math.max(0, mm.index-250), mm.index);
     const after = blob.slice(mm.index, mm.index+250);
     const kb = [...before.matchAll(/Koli[c\u010d]ina:\s*(\d+)/gi)];
@@ -397,7 +397,7 @@ function parsaj(txt){
     const dim = m[2].match(/(\d{3,4})\s*[x×]\s*(\d{3,4})/);
     if(!dim) continue;
     const wmm = Number(dim[1]), hmm = Number(dim[2]);
-    if(wmm<250 || hmm<250 || wmm>5000 || hmm>5000) continue;
+    if(wmm<250 || hmm<250 || wmm>15000 || hmm>6000) continue;
     out.push(oznaci({
       naziv: nazivOtvor(m[2]) + " poz." + m[1],
       wmm, hmm,
@@ -412,7 +412,7 @@ function parsaj(txt){
   let lastW = null, lastH = null, lastIdx = -999999, prevEnd = 0;
   while((m = re.exec(flat))){
     const wmm = Number(m[1]), hmm = Number(m[2]);
-    if(wmm<250 || hmm<250 || wmm>5000 || hmm>5000) continue;
+    if(wmm<250 || hmm<250 || wmm>15000 || hmm>6000) continue;
     // opis SAMO ove pozicije: od kraja prethodne mjere (ili zadnje oznake pozicije) do mjere
     let opisPoz = flat.slice(Math.max(0, prevEnd, m.index-150), m.index);
     opisPoz = opisPoz.split(/(?:poz(?:icija)?\.?:?\s*\d+|\n)/i).pop();
