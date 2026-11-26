@@ -56,6 +56,10 @@ td{padding:5px 4px;border-bottom:1px solid #e6e6e6}
 
   <label>Kupac</label>
   <input id="kupac" oninput="crtajPonudu()"/>
+  <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:12px;color:#fff;margin:8px 0 4px">
+    <input type="checkbox" id="pravna" onchange="crtajPonudu()" style="width:auto">
+    Pravna osoba — prijenos PDV-a (čl. 75. st. 3)
+  </label>
   <div class="row2">
     <div><label>Broj</label><input id="broj" oninput="crtajPonudu()"/></div>
     <div><label>Datum</label><input id="datum" oninput="crtajPonudu()"/></div>
@@ -563,6 +567,7 @@ function crtaj(rebuild){
   crtajPonudu();
 }
 
+function jePravna(){ const el=document.getElementById("pravna"); return !!(el && el.checked); }
 function crtajPonudu(){
   const rows = RADOVI.filter(r=>uklj[r.id]).map(r=>{
     const dm = metara(r);
@@ -570,7 +575,8 @@ function crtajPonudu(){
     return {naziv:r.naziv, kako:r.kako, dm, c, uk: +(dm*c).toFixed(2)};
   });
   const sub = +rows.reduce((a,x)=>a+x.uk,0).toFixed(2);
-  const pdv = +(sub*0.25).toFixed(2);
+  const pravna = jePravna();
+  const pdv = pravna ? 0 : +(sub*0.25).toFixed(2);
   const tot = +(sub+pdv).toFixed(2);
 
   document.getElementById("sheet").innerHTML = `
@@ -594,12 +600,14 @@ function crtajPonudu(){
         || `<tr><td colspan="5">Uključi rad u izborniku lijevo.</td></tr>`}</tbody>
     </table>
     <div class="totals">
-      <div><span>Bez PDV-a</span><b>${fmt(sub)} €</b></div>
-      <div><span>PDV 25%</span><b>${fmt(pdv)} €</b></div>
-      <div class="grand"><span>UKUPNO</span><span>${fmt(tot)} €</span></div>
+      <div><span>UKUPNO bez PDV-a</span><b>${fmt(sub)} €</b></div>
+      ${pravna
+        ? `<div><span>PDV</span><b>prijenos obveze</b></div><div class="grand"><span>UKUPNO</span><span>${fmt(tot)} €</span></div>`
+        : `<div><span>PDV 25%</span><b>${fmt(pdv)} €</b></div><div class="grand"><span>UKUPNO s PDV-om</span><span>${fmt(tot)} €</span></div>`}
     </div>
     <div style="margin-top:6mm;font-size:9px;line-height:1.45">
       <b>NAPOMENE:</b><br>
+      ${pravna?`• PRIJENOS POREZNE OBVEZE prema čl. 75. st. 3 Zakona o PDV-u (NN 73/13).<br>`:""}
       • Rok isporuke: 10 dana. Plaćanje: 70% avans, ostatak nakon ugradnje.
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8mm;margin-top:5mm;font-size:9px">
@@ -688,8 +696,9 @@ function tekstPonude(){
     return r.naziv+": "+fmt(dm)+" m' x "+fmt(c)+" € = "+fmt(dm*c)+" €";
   });
   const sub = rows.length ? RADOVI.filter(r=>uklj[r.id]).reduce((a,r)=>a+metara(r)*(Number(cijena[r.id])||0),0) : 0;
-  const tot = sub*1.25;
-  return "PONUDA "+br+"\nKupac: "+kup+"\nDatum: "+v("datum")+"\nIsporuka: 10 dana\nPlaćanje: 70% avans, ostatak nakon ugradnje\n\n"+rows.join("\n")+"\n\nUkupno s PDV-om: "+fmt(tot)+" €";
+  const pravna = jePravna();
+  const tot = pravna ? sub : sub*1.25;
+  return "PONUDA "+br+"\nKupac: "+kup+"\nDatum: "+v("datum")+"\nIsporuka: 10 dana\nPlaćanje: 70% avans, ostatak nakon ugradnje\n\n"+rows.join("\n")+"\n\n"+(pravna ? "Ukupno: "+fmt(tot)+" € (PDV: prijenos porezne obveze prema čl. 75. st. 3 Zakona o PDV-u)" : "Ukupno s PDV-om: "+fmt(tot)+" €");
 }
 function posaljiMail(){
   const subj = encodeURIComponent("Ponuda "+(v("broj")||"")+" — "+(v("kupac")||"RAL montaža"));
